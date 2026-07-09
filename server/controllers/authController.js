@@ -51,7 +51,7 @@ exports.register = async (req, res) => {
       otpExpiry
     });
 
-    //OTP Sending logic 
+    // OTP Sending logic
     try {
       await sendEmail({
         to: normalizedEmail,
@@ -59,7 +59,12 @@ exports.register = async (req, res) => {
         text: `Your OTP code is ${otp}. It will expire in 10 minutes.`
       })
     } catch (error) {
+      await User.findByIdAndDelete(user._id);
       console.error({ message: 'Error sending OTP email:', error: error.message });
+      return res.status(500).json({
+        message: 'We could not send your OTP email. Please check the email service configuration and try again.',
+        error: error.message,
+      });
     }
 
     res.status(201).json({
