@@ -18,30 +18,22 @@ exports.register = async (req, res) => {
     const displayName = username || name;
     const normalizedEmail = email?.trim().toLowerCase();
 
-    if (!displayName || !normalizedEmail || !password) {
-      return res.status(400).json({ message: 'Please provide all required fields' });
-    }
+    // validation code...
 
-    if (password.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
-    }
-
-    if (normalizedEmail && !normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      return res.status(400).json({ message: 'Please provide a valid email address' });
-    }
-
-    if (displayName.length < 3) {
-      return res.status(400).json({ message: 'Username must be at least 3 characters long' });
-    }
+    console.log("STEP 1");
 
     const existingUser = await User.findOne({ email: normalizedEmail });
+
+    console.log("STEP 2");
 
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
 
     const otp = generateOtp();
-    const otpExpiry = Date.now() + 10 * 60 * 1000; // OTP valid for 10 minutes
+    const otpExpiry = Date.now() + 10 * 60 * 1000;
+
+    console.log("STEP 3");
 
     const user = await User.create({
       username: displayName.trim(),
@@ -51,32 +43,31 @@ exports.register = async (req, res) => {
       otpExpiry
     });
 
-    // OTP Sending logic
-    try {
-      await sendEmail({
-        to: normalizedEmail,
-        subject: 'Your OTP Code for AI COLD MAIL GENERATOR',
-        text: `Your OTP code is ${otp}. It will expire in 10 minutes.`
-      })
-    } catch (error) {
-      await User.findByIdAndDelete(user._id);
-      console.error({ message: 'Error sending OTP email:', error: error.message });
-      return res.status(500).json({
-        message: 'We could not send your OTP email. Please check the email service configuration and try again.',
-        error: error.message,
-      });
-    }
+    console.log("STEP 4");
+
+    await sendEmail({
+      to: normalizedEmail,
+      subject: 'Your OTP Code for AI COLD MAIL GENERATOR',
+      text: `Your OTP code is ${otp}. It will expire in 10 minutes.`
+    });
+
+    console.log("STEP 5");
 
     res.status(201).json({
       message: 'User registered successfully',
       userId: user._id,
-      user: { username: user.username, email: user.email },
+      user: {
+        username: user.username,
+        email: user.email
+      }
     });
 
-  }
-  catch (error) {
+  } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({
+      message: "Server Error",
+      error: error.message
+    });
   }
 };
 
