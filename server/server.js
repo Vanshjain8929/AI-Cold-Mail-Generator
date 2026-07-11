@@ -6,8 +6,8 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const aiRoutes = require('./routes/aiRoutes');
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from server/.env
+dotenv.config({ path: __dirname + '/.env' });
 
 // Support either env name while keeping the DB connector on MONGO_URI
 process.env.MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI;
