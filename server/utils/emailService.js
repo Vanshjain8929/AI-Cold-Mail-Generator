@@ -5,14 +5,18 @@ const sendEmail = async (options) => {
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
             throw new Error('Email credentials not configured in environment variables');
         }
-
+        console.log("EMAIL_USER:", process.env.EMAIL_USER);
+        console.log("EMAIL_PASS length:", process.env.EMAIL_PASS?.length);
         const transporter = nodemailer.createTransport({
-            service: 'gmail',
+            service: "gmail",
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS,
             },
         });
+
+        await transporter.verify();
+        console.log("SMTP connected successfully");
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
