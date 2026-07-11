@@ -1,162 +1,147 @@
 const User = require('../models/User');
-const jwt = require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
 const sendEmail = require('../utils/emailService');
 
+// Generate JWT Token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
-  });
-}
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+};
 
-const generateOtp = () => {
+// Generate 6-digit OTP
+const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
-}
+};
 
 exports.register = async (req, res) => {
   try {
-    const { username, name, email, password } = req.body;
-    const displayName = username || name;
-    const normalizedEmail = email?.trim().toLowerCase();
+    const { name, email, password } = req.body;
 
-    // validation code...
-
-    console.log("STEP 1");
-
-    const existingUser = await User.findOne({ email: normalizedEmail });
-
-    console.log("STEP 2");
-
-    if (existingUser) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+    // Input validation
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
     }
 
-    const otp = generateOtp();
-    const otpExpiry = Date.now() + 10 * 60 * 1000;
+    if (email && !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return res.status(400).json({ message: 'Please provide a valid email address' });
+    }
 
-    console.log("STEP 3");
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    if (name.length < 2) {
+      return res.status(400).json({ message: 'Name must be at least 2 characters long' });
+    }
+
+    const userExists = await User.findOne({ email: email.toLowerCase() });
+
+    if (userExists) {
+      return res.status(400).json({ message: 'Email already registered. Please try logging in.' });
+    }
+
+    const otp = generateOTP();
+    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     const user = await User.create({
-      username: displayName.trim(),
-      email: normalizedEmail,
+      name: name.trim(),
+      email: email.toLowerCase(),
       password,
       otp,
       otpExpiry
     });
 
-    console.log("STEP 4");
-
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    // Always attempt to send the OTP email, regardless of environment
-    let emailSent = false;
-    let lastEmailError = null;
+    // Send OTP email
+    const message = `Your OTP for verification is: ${otp}\n\nThis OTP is valid for 10 minutes.`;
     try {
-      await sendEmail({
-        to: normalizedEmail,
-        subject: 'Your OTP Code for AI COLD MAIL GENERATOR',
-        text: `Your OTP code is ${otp}. It will expire in 10 minutes.`
-      });
-      emailSent = true;
-      console.log('OTP email sent successfully to', normalizedEmail);
-    } catch (emailError) {
-      console.error('OTP email failed:', emailError);
-      lastEmailError = emailError;
+      await sendEmail({ email: user.email, subject: 'Email Verification OTP - AI Cold Mail Generator', message });
+    } catch (error) {
+      console.log('Email sending error:', error.message);
+      // Still allow registration even if email fails
     }
 
-    console.log("STEP 5");
-
-    // Return OTP in response when email fails (in any environment)
-    // so the user can still complete verification
-    const message = emailSent
-      ? 'User registered successfully. Please check your email for the OTP.'
-      : 'User registered successfully, but email delivery failed. OTP shown below for verification.';
-
     res.status(201).json({
-      message,
+      message: 'User registered successfully. Please verify OTP sent to your email.',
       userId: user._id,
-      user: {
-        username: user.username,
-        email: user.email
-      },
-      ...(!emailSent ? { otp, emailWarning: lastEmailError?.response || lastEmailError?.message } : {})
+      email: user.email
     });
-
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      message: "Server Error",
-      error: error.message
-    });
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Registration failed', error: error.message });
   }
 };
 
 exports.verifyOtp = async (req, res) => {
   try {
-    const email = req.body.email?.trim().toLowerCase();
-    const { otp } = req.body;
+    const { userId, otp } = req.body;
 
-    if (!email || !otp) {
-      return res.status(400).json({ message: 'Please provide both email and OTP' });
+    if (!userId || !otp) {
+      return res.status(400).json({ message: 'User ID and OTP are required' });
     }
 
-    const user = await User.findOne({ email });
+    if (!/^\d{6}$/.test(otp)) {
+      return res.status(400).json({ message: 'OTP must be a 6-digit number' });
+    }
+
+    const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     if (user.isVerified) {
-      return res.status(400).json({ message: 'User is already verified' });
+      return res.status(400).json({ message: 'User already verified. Please login.' });
+    }
+
+    if (!user.otp || !user.otpExpiry) {
+      return res.status(400).json({ message: 'No OTP found. Please register again.' });
+    }
+
+    if (Date.now() > user.otpExpiry.getTime()) {
+      return res.status(400).json({ message: 'OTP has expired. Please register again.' });
     }
 
     if (user.otp !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
-    }
-
-    if (user.otpExpiry < new Date()) {
-      return res.status(400).json({ message: 'OTP has expired' });
+      return res.status(400).json({ message: 'Invalid OTP. Please try again.' });
     }
 
     user.isVerified = true;
     user.otp = undefined;
     user.otpExpiry = undefined;
-
     await user.save();
+
     res.status(200).json({
-      id: user._id,
-      username: user.username,
+      _id: user._id,
+      name: user.name,
       email: user.email,
       token: generateToken(user._id),
-      message: 'Email verified successfully',
+      message: 'Email verified successfully!'
     });
-
   } catch (error) {
-    return res.status(500).json({ message: 'Error verifying OTP', error: error.message });
+    console.error('OTP verification error:', error);
+    res.status(500).json({ message: 'Verification failed', error: error.message });
   }
 };
 
-
 exports.login = async (req, res) => {
   try {
+    const { email, password } = req.body;
 
-    const email = req.body.email?.trim().toLowerCase();
-    const { password } = req.body;
-
-    // Check required fields
+    // Input validation
     if (!email || !password) {
-      return res.status(400).json({ success: false, message: "Please provide email and password" });
+      return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Find user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Check email verification
     if (!user.isVerified) {
-      return res.status(401).json({ success: false, message: "Please verify your email first" });
+      return res.status(401).json({ 
+        message: 'Please verify your email first',
+        userId: user._id
+      });
     }
 
     const isPasswordValid = await user.matchPassword(password);
@@ -167,12 +152,11 @@ exports.login = async (req, res) => {
 
     res.status(200).json({
       _id: user._id,
-      username: user.username,
+      name: user.name,
       email: user.email,
       token: generateToken(user._id),
       message: 'Login successful!'
     });
-    
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Login failed', error: error.message });
