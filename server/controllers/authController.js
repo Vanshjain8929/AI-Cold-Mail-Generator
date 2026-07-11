@@ -45,21 +45,43 @@ exports.register = async (req, res) => {
 
     console.log("STEP 4");
 
-    await sendEmail({
-      to: normalizedEmail,
-      subject: 'Your OTP Code for AI COLD MAIL GENERATOR',
-      text: `Your OTP code is ${otp}. It will expire in 10 minutes.`
-    });
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (isProduction) {
+      try {
+        await sendEmail({
+          to: normalizedEmail,
+          subject: 'Your OTP Code for AI COLD MAIL GENERATOR',
+          text: `Your OTP code is ${otp}. It will expire in 10 minutes.`
+        });
+      } catch (emailError) {
+        console.error('OTP email failed:', emailError);
+
+        return res.status(201).json({
+          message: 'User registered successfully, but email delivery failed on this server. OTP returned for verification.',
+          userId: user._id,
+          user: {
+            username: user.username,
+            email: user.email
+          },
+          otp,
+          emailWarning: emailError.response || emailError.message,
+        });
+      }
+    }
 
     console.log("STEP 5");
 
     res.status(201).json({
-      message: 'User registered successfully',
+      message: isProduction
+        ? 'User registered successfully'
+        : 'User registered successfully. Development OTP returned for local testing.',
       userId: user._id,
       user: {
         username: user.username,
         email: user.email
-      }
+      },
+      ...(isProduction ? {} : { otp })
     });
 
   } catch (error) {

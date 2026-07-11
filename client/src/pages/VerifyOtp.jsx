@@ -21,12 +21,19 @@ const VerifyOtp = () => {
     const { login } = useAuth();
 
     const email = location.state?.email;
+    const initialOtp = location.state?.otp || '';
 
     useEffect(() => {
         if (!email) {
             navigate('/signup');
         }
     }, [email, navigate]);
+
+    useEffect(() => {
+        if (initialOtp) {
+            setOtp(initialOtp);
+        }
+    }, [initialOtp]);
 
     if (!email) return null;
 
