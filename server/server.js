@@ -34,7 +34,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 app.use('/api/auth', authRoutes);
-app.use('/api/ai', aiRoutes);
+app.use('/ai', aiRoutes);
 
 // Absolute path to client build folder
 const clientBuildPath = path.join(__dirname, '..', 'client', 'dist');
