@@ -61,10 +61,64 @@ exports.register = async (req, res) => {
 
     try {
       await sendEmail({
-        email: user.email,              // ✅ use email
-        subject: "Email Verification OTP",
-        message: `Your OTP is ${otp}`,  // ✅ use message
-      });
+  to: user.email,
+
+  from: `"AI Cold Mail Generator" <${process.env.EMAIL_USER}>`,
+
+  subject: "Verify your email address",
+
+  text: `Your OTP is ${otp}`,
+
+  html: `
+  <div style="max-width:600px;margin:auto;font-family:Arial,sans-serif;background:#f8fafc;padding:40px;border-radius:12px">
+
+      <h2 style="color:#2563eb;text-align:center;">
+          AI Cold Mail Generator
+      </h2>
+
+      <p>Hello <strong>${user.username}</strong>,</p>
+
+      <p>
+          Thank you for creating an account with
+          <strong>AI Cold Mail Generator</strong>.
+      </p>
+
+      <p>Your verification code is:</p>
+
+      <div style="
+          background:#2563eb;
+          color:white;
+          font-size:34px;
+          font-weight:bold;
+          text-align:center;
+          padding:18px;
+          border-radius:10px;
+          letter-spacing:8px;
+          margin:30px 0;
+      ">
+          ${otp}
+      </div>
+
+      <p>
+          This OTP expires in
+          <strong>10 minutes</strong>.
+      </p>
+
+      <p style="color:#666;">
+          If you did not create this account,
+          you can safely ignore this email.
+      </p>
+
+      <hr style="margin:30px 0;">
+
+      <p style="text-align:center;color:#888;">
+          Regards,<br>
+          <strong>AI Cold Mail Generator</strong>
+      </p>
+
+  </div>
+  `,
+});
 
       console.log("✅ sendEmail() completed");
     } catch (err) {
@@ -170,7 +224,7 @@ exports.login = async (req, res) => {
     }
 
     if (!user.isVerified) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         message: 'Please verify your email first',
         userId: user._id
       });
